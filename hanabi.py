@@ -20,8 +20,8 @@ main_text = StringVar()
 old_text = ''
 fuse_colors = ['#E9D700', '#D95700', '#CB0000', '#750E0E']
 current_player, total_players, counter = ('','','')
-deck, fuses, hints = [],[],[]
-played, discard = [],[]
+msg, fuses, hints = [],[],[]
+deck, played, discard = [],[], []
 hands, known  = [], []
 my_hand, my_known = [],[]
 
@@ -162,7 +162,7 @@ def show_deck(event):
 
 def hide_deck(event):
     global old_text
-    if main_text.get()[:19] == 'Cards Left In Deck:':
+    if main_text.get().startswith('Cards Left In Deck:'):
         main_text.set(old_text)
 
 def show_discard(event):
@@ -191,6 +191,7 @@ def hanabi_help(event):
     help = Toplevel()
     help.title("Help")
     help.configure(bg='#1F1F1F')
+    help.geometry('275x445')
     help_msg = (
 '''Hanabi Rules
 
@@ -256,16 +257,16 @@ def data_thread(conn, player_num):
         if d1:
             data = loads(d1)
             unpack(data)
-            global current_player, counter, fuses, deck, played
+            global current_player, counter, fuses, deck, played, msg
             score = sum([len(v) for v in played.values()])
             if not any(fuses) or score >= 25 or (not any(deck.values()) and counter == total_players+1):
                 end_game(score)
                 break
             if current_player == player_num:
-                main_text.set('What would you like to do?')
                 info_btn.config(state=NORMAL)
                 disc_btn.config(state=NORMAL)
                 play_btn.config(state=NORMAL)
+            main_text.set(msg)
         else:
             break
         kill_played()
@@ -279,8 +280,9 @@ def data_thread(conn, player_num):
 
 def unpack(data):
     global current_player, total_players, player_num, counter, fuses, hints
-    global deck, played, discard, hands, known, my_hand, my_known
+    global deck, played, discard, hands, known, my_hand, my_known, msg
     current_player, total_players, counter = data['player info']
+    msg = data['message']
     fuses   = data['fuses']
     hints   = data['hints']
     deck    = data['deck']
@@ -293,11 +295,12 @@ def unpack(data):
 
 def pack():
     global current_player, total_players, counter, fuses, hints
-    global deck, discard, played, known, hands
+    global deck, discard, played, known, hands, msg
     current_player = (current_player+1)%total_players
     counter = counter + 1 if not any(deck.values()) else counter
     data = {
         'player info' : (current_player, total_players, counter),
+        'message' : msg,
         'fuses' : fuses,
         'hints' : hints,
         'deck' : deck,
@@ -312,7 +315,7 @@ def send_data():
     global conn
     data = pack()
     d1 = dumps(data)
-    conn.send(d1)
+    conn.sendall(d1)
 
 def draw_card():
     global deck
@@ -327,7 +330,7 @@ def draw_card():
     return card
 
 def post_info(event,info_idx):
-    global hands, known
+    global hands, known, msg
     x = (event.x-10)//55
     y = 0 if event.y <= 90 else 1
     converter = {
@@ -348,7 +351,7 @@ def post_info(event,info_idx):
             other_known[y] = 1
     kill_played()
     draw_played()
-    main_text.set('Waiting for your turn...')
+    msg = f'Player {player_num+1} gave Player {info_idx+1} info: {info.upper()}'
     send_data()
 
 def peri_info(event):
@@ -392,7 +395,7 @@ def pre_info():
         main_text.set('You can\'t give a hint. Try a different action.')
 
 def post_discard(event):
-    global my_hand, discard, my_known
+    global my_hand, discard, my_known, msg
     val = 30 if total_players >= 4 else 22
     for i in range(5-total_players//4):
         if (val*i+76 <= event.x and event.x < val*i+76+val or
@@ -405,15 +408,15 @@ def post_discard(event):
             draw_hands()
             for id in tiles[4].find_all():
                 tiles[4].tag_unbind(id, '<Button-1>')
-            main_text.set('Waiting for your turn...')
+            msg = f'Player {current_player+1} discarded a {color.upper()} {num}'
             send_data()
 
 def pre_discard():
     global my_hand, hints
     try:
-        idx = hints.index(False)
-        tiles[2].itemconfig(f'hint{idx}', fill='#0000FF', outline='#1F1F1F')
-        hints[idx] = True
+        idx = hints[::-1].index(False)
+        tiles[2].itemconfig(f'hint{len(hints)-idx-1}', fill='#0000FF', outline='#1F1F1F')
+        hints[len(hints)-idx-1] = True
         main_text.set('Choose which card you want to discard.')
         info_btn.config(state=DISABLED)
         disc_btn.config(state=DISABLED)
@@ -424,7 +427,7 @@ def pre_discard():
         main_text.set('You can\'t discard a card. Try a different action.')
 
 def post_play(event):
-    global hints, fuses, my_hand, my_known, discard, played
+    global hints, fuses, my_hand, my_known, discard, played, msg
     val = 30 if total_players >= 4 else 22
     for i in range(5-total_players//4):
         if (val*i+76 <= event.x and event.x < val*i+76+val or
@@ -434,11 +437,12 @@ def post_play(event):
             val1 = played[color][-1] if played[color] else 0
             if int(num) == val1 + 1:
                 played[color].append(int(num))
+                msg = f'Player {player_num+1} played a {color.upper()} {num}'
                 if int(num) == 5:
                     try:
-                        idx = hints.index(False)
-                        tiles[2].itemconfig(f'hint{idx}', fill='#0000FF', outline='#1F1F1F')
-                        hints[idx] = True
+                        idx = hints[::-1].index(False)
+                        tiles[2].itemconfig(f'hint{len(hints)-idx-1}', fill='#0000FF', outline='#1F1F1F')
+                        hints[len(hints)-idx-1] = True
                     except ValueError:
                         pass
             else:
@@ -446,6 +450,7 @@ def post_play(event):
                 tiles[3].itemconfig(f'fuse{idx}', fill='#1F1F1F', outline=fuse_colors[idx])
                 fuses[idx] = False
                 discard[color].append(int(num))
+                msg = f'Player {player_num+1} burned a {color.upper()} {num}'
             my_hand[i]  = draw_card()
             my_known[i] = [0,0]
             kill_hands()
@@ -454,7 +459,6 @@ def post_play(event):
             draw_played()
             for id in tiles[4].find_all():
                 tiles[4].tag_unbind(id, '<Button-1>')
-            main_text.set('Waiting for your turn...')
             send_data()
 
 def pre_play():
@@ -480,7 +484,10 @@ if __name__=='__main__':
     d1 = loads(conn.recv(1024))
     player_num = d1['player num']
     data = unpack(d1)
-    main_text.set('Waiting for your turn...')
+
+    root.title(f"Hanabi Player {player_num+1}")
+    msg = f'Hello Player {player_num+1}, {msg}' if player_num != current_player else 'What do you do want to do?'
+    main_text.set(msg)
 
     t = threading.Thread(target=data_thread, args=(conn,player_num))
     t.start()
