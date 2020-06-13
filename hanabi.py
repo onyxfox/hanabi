@@ -107,10 +107,10 @@ def draw_status():
     # Create Hints and Fuses
     for i, hint_val in enumerate(hints):
         if hint_val:
-            options = {'fill':'#0000F0', 'outline':'#1F1F1F', 'tags':f'hint{2*x+0}'}
+            options = {'fill':'#0000F0', 'outline':'#1F1F1F', 'tags':f'hint{i}'}
             tiles[2].create_oval(i*34+12, 10+(i%2)*34, i*34+46, 44+(i%2)*34, options)
         else:
-            options = {'fill':'#1F1F1F', 'outline':'#0000F0', 'tags':f'hint{2*x+0}'}
+            options = {'fill':'#1F1F1F', 'outline':'#0000F0', 'tags':f'hint{i}'}
             tiles[2].create_oval(i*34+12, 10+(i%2)*34, i*34+46, 44+(i%2)*34, options)
     for j, fuse_val, in enumerate(fuses):
         if fuse_val:
